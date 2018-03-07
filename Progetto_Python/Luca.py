@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import multiprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
@@ -28,6 +29,7 @@ creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMax) # We create our class representing an Individual
 
 toolbox = base.Toolbox()
+
 # The function to generate chromosome values (if individual[i] = 1, consider i-th feature; do not if individual[i] = 0)
 toolbox.register("attr_bool", random.randint, 0, 1)
 # Here we specify how to create an individual. dataset.shape[1] is the number of chromosomes (the number of pathways, i.e. number of features)
@@ -53,8 +55,11 @@ toolbox.register("mutate", tools.mutFlipBit, indpb=0.3)
 # After we practise elitism on 10% of our population, we select remaining 90% through tournament technique
 toolbox.register("select", selElitistAndTournament, k_elitist=int(0.1*POP_SIZE), k_tournament=POP_SIZE - int(0.1*POP_SIZE), tournsizeTour=(0.1*POP_SIZE))
 
+pool = multiprocessing.Pool()
+toolbox.register("map", pool.map) # Replacing map function with a parallel map impementation
+
 pop = toolbox.population(n=POP_SIZE)
-fitnesses = list(map(toolbox.evaluate, pop))
+fitnesses = list(toolbox.map(toolbox.evaluate, pop))
 
 for ind, fit in zip(pop, fitnesses):
     ind.fitness.values = fit
@@ -69,7 +74,7 @@ while max(fits) < 1.0 and g < EPOCHS:
     # The toolbox.clone() method ensure that we don’t use a reference to the individuals but an completely independent 
     # instance. This is of utter importance since the genetic operators in toolbox will modify the provided objects 
     # in-place
-    offspring = list(map(toolbox.clone, offspring))
+    offspring = list(toolbox.map(toolbox.clone, offspring))
     
     # Crossover
     for child1, child2 in zip(offspring[::2], offspring[1::2]):
@@ -86,7 +91,7 @@ while max(fits) < 1.0 and g < EPOCHS:
         del mutant.fitness.values
     
     invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-    fitnesses = map(toolbox.evaluate, invalid_ind) # Recalculate fitness of invalid (evolved) individuals
+    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind) # Recalculate fitness of invalid (evolved) individuals
     
     for ind, fit in zip(invalid_ind, fitnesses):
         ind.fitness.values = fit
