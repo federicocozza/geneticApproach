@@ -69,7 +69,7 @@ g = 0
 while max(fits) < 1.0 and g < EPOCHS:
     g = g + 1
     print("-- Generation %i --" % g)
-    offspring = toolbox.select(pop, len(pop))
+    offspring = toolbox.select(pop)
     # We have to copy our population before we apply crossover and/or mutation.
     # The toolbox.clone() method ensure that we don’t use a reference to the individuals but an completely independent 
     # instance. This is of utter importance since the genetic operators in toolbox will modify the provided objects 
