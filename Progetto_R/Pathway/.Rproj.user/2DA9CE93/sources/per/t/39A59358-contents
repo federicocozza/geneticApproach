@@ -1,6 +1,6 @@
 library(Biobase)
 library(RcppCNPy)
-load("/Users/federicocozza/Desktop/Federico Cozza/Tagliaferri/Dati Luca/all_exprs_data.RData")
+load("/Users/federicocozza/Desktop/Federico Cozza/Tagliaferri/geneticApproach/all_exprs_data.RData")
 lc4 <- exprs(expr.lc4)
 lc4 <- lc4[1:9446,]
 
