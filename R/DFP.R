@@ -1,0 +1,220 @@
+
+
+parDiscretizeExpressionValues <- function(cluster, rmadataset, mfs, zeta = 0.5, overlapping = 2)
+{
+  rmam <- exprs(rmadataset)
+  rmam[c(1:8), c(1:4)]
+  rmav <- as.vector(pData(phenoData(rmadataset))$class)
+  names(rmav) <- sampleNames(rmadataset)
+  gene.names <- rownames(rmam)
+  dvs <- NULL
+
+  doit <- function(ig) {
+    values <- rmam[ig, ]
+    disc.values <- DFP:::.fuzzyDiscretization(mfs[[ig]]$lel, mfs[[ig]]$mel,
+                                              mfs[[ig]]$hel, values, zeta, overlapping)
+    print("done")
+    return(disc.values)
+  }
+
+  dvs <- t(parSapply(cluster, gene.names, doit))
+
+  rownames(dvs) <- gene.names
+  head(dvs)
+  attr(dvs, "types") <- rmav
+  dvs
+  return(dvs)
+}
+
+parCalculateDiscriminantFuzzyPattern <- function (cluster, rmadataset, fps)
+{
+  discriminants <- NULL
+  doit <- function(ig) {
+    table.facFP <- table(factor(fps[ig, ]))
+    max.facFP <- ifelse(sum(table.facFP) == 0, 0, max(table.facFP))
+    max.facFP
+    res <- NA
+    if (max.facFP > 0 & max.facFP < sum(table.facFP)) {
+      res <- ig
+    }
+
+    return(res)
+  }
+
+  discriminants <- parSapply(cluster, featureNames(rmadataset), doit)
+  discriminants <- discriminants[!is.na(discriminants)]
+  dfp <- fps[discriminants, ]
+  dfp
+  attr(dfp, "ifs") <- attr(fps, "ifs")[discriminants, ]
+  dfp
+  return(dfp)
+}
+
+parCalculateFuzzyPatterns <- function (cluster, rmadataset, dvs, piVal = 0.9, overlapping = 2)
+{
+  if (overlapping == 1) {
+    disc.alphab <- c("Low", "Medium", "High")
+  }
+  else if (overlapping == 2) {
+    disc.alphab <- c("Low", "Low-Medium", "Medium", "Medium-High",
+                     "High")
+  }
+  else {
+    disc.alphab <- c("Low", "Low-Medium", "Low-Medium-High",
+                     "Medium", "Medium-High", "High")
+  }
+  fps <- NULL
+  ifs <- NULL
+
+  doit <- function(ig) {
+    disc.values <- dvs[ig, ]
+    disc.values
+    attr(disc.values, "types") <- attr(dvs, "types")
+    disc.values
+    fuzzypat <- DFP:::.fuzzyPatterns(disc.values, disc.alphab,
+                               piVal)
+    fuzzypat
+    return(list(fuzzypat, attr(fuzzypat, "ifs")))
+  }
+
+  result <- parLapply(cluster, featureNames(rmadataset), doit)
+
+  fps <- parLapply(cluster, result, "[[", 1)
+  ifs <- parLapply(cluster, result, "[[", 2)
+  fps <- t(simplify2array(fps))
+  ifs <- t(simplify2array(ifs))
+
+  rownames(fps) <- featureNames(rmadataset)
+  head(fps)
+  rownames(ifs) <- featureNames(rmadataset)
+  head(ifs)
+  attr(fps, "ifs") <- ifs
+  head(fps)
+  return(fps)
+}
+
+
+skipOddValues <- function (values, skipFactor = 3)
+{
+  if (skipFactor > 0) {
+    orderv <- order(values)
+    orderv
+    vals <- values[orderv]
+    vals
+    first <- trunc(length(vals)/4)
+    first
+    third <- trunc(length(vals)/4) * 3
+    third
+    firstValue <- vals[first + 1]
+    firstValue
+    thirdValue <- vals[third + 1]
+    thirdValue
+    RIC <- thirdValue - firstValue
+    RIC
+    lowBarrier <- firstValue - (skipFactor * RIC)
+    lowBarrier
+    highBarrier <- thirdValue + (skipFactor * RIC)
+    highBarrier
+    isOutlier <- values < lowBarrier | values > highBarrier
+    isOutlier
+  } else if (skipFactor == 0) {
+    isOutlier <- rep(FALSE, length(values))
+  }
+  return(isOutlier)
+}
+
+assignInNamespace(".skipOddValues", skipOddValues, "DFP")
+
+
+getDFP <- function(geneExpression, classes, skipFactor = 3, zeta = 0.5, piVal = 0.5, overlapping = 1, filterGenes = T,core = 1) {
+  results <- list()
+  numberOfGenes = nrow(geneExpression)
+
+  phenoData <- classes
+  names(phenoData)[length(names(phenoData))] <- "class"
+  phenoData <- new("AnnotatedDataFrame",data = phenoData)
+
+  if (filterGenes) {
+    vars <- apply(geneExpression, 1, var)
+    RNAReduced <- geneExpression[order(vars, decreasing = TRUE)[1:numberOfGenes],]
+    esRNA <- ExpressionSet(as.matrix(RNAReduced),phenoData = phenoData)
+  } else {
+    esRNA <- ExpressionSet(as.matrix(geneExpression),phenoData = phenoData)
+  }
+
+  mfs <- calculateMembershipFunctions(esRNA, skipFactor);
+  if (filterGenes) {
+    toremove <- c()
+    for(i in 1:length(mfs)){
+      if (is.na(mfs[[i]]$lel@center))
+        toremove <- c(toremove, i)
+    }
+    if (length(toremove) > 0) {
+      mfs <- mfs[-toremove]
+      RNAReduced <- RNAReduced[-toremove,]
+    }
+    esRNA <- ExpressionSet(as.matrix(RNAReduced),phenoData = phenoData)
+    print(paste("Number of selected genes:", nrow(RNAReduced)))
+  }
+
+
+  if (core > 1) {
+    cl <- makeCluster(core, outfile = "progress.log")
+    dvs <- parDiscretizeExpressionValues(cl, esRNA, mfs, zeta, overlapping); #dvs[1:4,1:10]
+    stopCluster(cl)
+  } else {
+    dvs <- discretizeExpressionValues(esRNA, mfs, zeta, overlapping); #dvs[1:4,1:10]
+  }
+  assign("dvs", dvs, envir = .GlobalEnv)
+
+  it <- 0
+  for (val in piVal) {
+    it <- it + 1
+    print(paste("Calculating dfps ", it, " of ", length(piVal), "...", sep = ""))
+
+    if (core > 1) {
+      cl <- makeCluster(core)
+      fps <- parCalculateFuzzyPatterns(cl, esRNA, dvs, val, overlapping);
+      stopCluster(cl)
+    } else {
+      fps <- calculateFuzzyPatterns(esRNA, dvs, val, overlapping); #fps[1:30,]
+    }
+
+    if (core > 1) {
+      cl <- makeCluster(core)
+      dfps <- parCalculateDiscriminantFuzzyPattern(cl, esRNA, fps);
+      stopCluster(cl)
+    } else {
+      dfps <- calculateDiscriminantFuzzyPattern(esRNA, fps);
+    }
+
+
+    results[[length(results)+1]] <- list(skipFactor = skipFactor,zeta = zeta,piVal = val,overlapping = overlapping,
+                                         #filterGenes = filterGenes,numberOfGenes = numberOfGenes,mfs = mfs,dvs = dvs,
+                                         #fps = fps,
+                                         discriminantGenes = dfps)
+
+    gc() # execute garbage collection between calls
+  }
+  return(results)
+}
+
+multiDFP <- function(geneExpression, classes, skipFactor = 3, zeta = 0.5, piVal = 0.5, overlapping = 1, filterGenes = TRUE, core = 1) {
+  require(DFP)
+  results <- list()
+  totalCalls <- length(skipFactor) * length(zeta) * length(overlapping)
+  i <- 0
+  for (sf in skipFactor) {
+    for (z in zeta) {
+      for (o in overlapping) {
+        i <- i + 1
+        print(paste("Call ", i, " of ", totalCalls, "...", sep = ""))
+        DFPres <- getDFP(geneExpression = geneExpression, classes = classes, skipFactor = sf, zeta = z, piVal = piVal, overlapping = o, filterGenes = filterGenes, core = core)
+
+        results<- c(results,DFPres)
+        file.remove("progress.log")
+      }
+    }
+  }
+  return(results)
+}
