@@ -53,7 +53,7 @@ toolbox.register("mate", tools.cxOnePoint) # Single point crossover function
 toolbox.register("mutate", tools.mutFlipBit, indpb=0.3)
 # 10% of individuals with the best fitness values were selected to be passed to the next generation.
 # After we practise elitism on 10% of our population, we select remaining 90% through tournament technique
-toolbox.register("select", selElitistAndTournament, k_elitist=int(0.1*POP_SIZE), k_tournament=POP_SIZE - int(0.1*POP_SIZE), tournsizeTour=(0.1*POP_SIZE))
+toolbox.register("select", selElitistAndTournament, k_elitist=int(0.1*POP_SIZE), k_tournament=POP_SIZE - int(0.1*POP_SIZE), tournsizeTour=int(0.1*POP_SIZE))
 
 pool = multiprocessing.Pool()
 toolbox.register("map", pool.map) # Replacing map function with a parallel map impementation
