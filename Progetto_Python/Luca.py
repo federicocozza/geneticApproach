@@ -8,6 +8,7 @@ from deap import creator
 from deap import tools
 
 CXPB = 0.7
+POP_SIZE = 1000
 
 dataset = np.load("dataset.npy")
 labels = np.load("labels.npy")
@@ -29,12 +30,15 @@ def evalAccuracy(individual):
     trainAfterSelection = trainFeature[:, indices] 
     return cross_val_score(clf, trainAfterSelection, trainFeatureLabels)
 
+def selElitistAndTournament(individuals, k_elitist, k_tournament, tournsizeTour):
+    return tools.selBest(individuals, k_elitist) + tools.selTournament(individuals, k_tournament, tournsize=tournsizeTour)
+
 toolbox.register("evaluate", evalAccuracy)
 toolbox.register("mate", tools.cxOnePoint)
 toolbox.register("mutate", tools.mutFlipBit, indpb=0.3)
-toolbox.register("select", tools.selTournament, tournsize=100)
+toolbox.register("select", selElitistAndTournament, k_elitist=int(0.1*POP_SIZE), k_tournament=POP_SIZE - int(0.1*POP_SIZE), tournsizeTour=(0.1*POP_SIZE))
 
-pop = toolbox.population(n=1000)
+pop = toolbox.population(n=POP_SIZE)
 fitnesses = list(map(toolbox.evaluate, pop))
 
 for ind, fit in zip(pop, fitnesses):
