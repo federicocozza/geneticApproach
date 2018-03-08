@@ -42,7 +42,7 @@ def evalAccuracy(individual):
 	clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
     indices = [i for i, x in enumerate(individual) if x == 1]
     trainAfterSelection = trainFeature[:, indices] # Selecting features according to the chromosomes of the individual
-    return cross_val_score(clf, trainAfterSelection, trainFeatureLabels, cv = 5) # Fitness = 5-Fold CV Accuracy
+    return cross_val_score(clf, trainAfterSelection, trainFeatureLabels, cv = 3) # Fitness = 3-Fold CV Accuracy
 
 def selElitistAndTournament(individuals, k_elitist, k_tournament, tournsizeTour):
     return tools.selBest(individuals, k_elitist) + tools.selTournament(individuals, k_tournament, tournsize=tournsizeTour)
