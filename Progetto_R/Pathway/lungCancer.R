@@ -41,5 +41,27 @@ for (i in 1:pathwaysNumber) {
 }
 
 featurePathways <- t(featurePathways)
+
 npySave("dataset.npy", featurePathways)
 npySave("labels.npy", labelsLC4)
+
+selectedPathways <- gsub("^(KEGG|REACTOME)_(.*)$", "\\2", names(allPathways))
+allGeneSets <- c(enrichRes$KEGGPathway@geneSets, enrichRes$ReactomePathway@geneSets)
+geneSets <- allGeneSets[selectedPathways]
+
+jaccardSimilarities <- unlist(lapply(combn(geneSets, 2, simplify = FALSE), function(x) {
+  length(intersect(x[[1]], x[[2]]))/length(union(x[[1]], x[[2]])) 
+}))
+
+combinations <- cbind(t(combn(length(geneSets),2)), jaccardSimilarities)
+
+jaccardMatrix <- matrix(1, nrow = length(geneSets), ncol = length(geneSets))
+row.names(jaccardMatrix) <- names(geneSets)
+colnames(jaccardMatrix) <- names(geneSets)
+
+invisible(apply(combinations, 1, function(x) {
+  jaccardMatrix[x[1],x[2]] <<- x[3]
+  jaccardMatrix[x[2],x[1]] <<- x[3]
+}))
+
+npySave("jaccard.npy", jaccardMatrix)

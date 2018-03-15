@@ -5,10 +5,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics.pairwise import pairwise_distances
+from scipy.sparse import csc_matrix, diags
 from deap import base
 from deap import creator
 from deap import tools
-from scipy.sparse import *
 
 def construct_W(X, **kwargs):
     """
