@@ -483,7 +483,7 @@ for ind, fit in zip(pop, fitnesses):
 fits = [ind.fitness.values[0] for ind in pop]
 g = 0
 
-while max(fits) < 1.0 and g < EPOCHS:
+while max(fits) < 3.0 and g < EPOCHS:
     g = g + 1
     print("-- Generation %i --" % g)
     offspring = toolbox.select(pop)
