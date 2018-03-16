@@ -414,10 +414,13 @@ dataset = np.load("dataset.npy")
 labels = np.load("labels.npy")
 jaccardMatrix = np.load("jaccard.npy") # Pathway-pathway similarity based on Jaccard index (ranging from 0 to 1)
 
-# We find maximum similarity value in our pathway-pathway Jaccard matrix to scale our fitness values between 0 and 1 
-mask = np.ones(jaccardMatrix.shape, dtype=bool)
-np.fill_diagonal(mask, 0) # We ignore the diagonal because it contains similarity between a pathway and itself (clearly equal to 1)
-maxJaccardSimilarity = jaccardMatrix[mask].max()
+# We find maximum similarity value in our pathway-pathway Jaccard matrix to scale our fitness values between 0 and 1
+# Maximum similarity is equal to similarity value considering all pathways (i.e. considering all features)
+maxJaccardSimilarity = 0
+for t in range(0, dataset.shape[1]):
+    for v in range(1, dataset.shape[1]):
+        if t < v: # Jaccard matrix is specular, so Matrix[i,j] = Matrix[j,i]. We don't consider each value twice!
+            maxJaccardSimilarity += jaccardMatrix[t, v]
 
 # We split our dataset with a 80/20 split: 80% for training set and remaining 20% for test set.
 # We further split our training set in two equal parts: first one for feature selection with GA; second one for classifiers tuning.
@@ -483,7 +486,7 @@ for ind, fit in zip(pop, fitnesses):
 fits = [ind.fitness.values[0] for ind in pop]
 g = 0
 
-while max(fits) < 3.0 and g < EPOCHS:
+while max(fits) < 1.0 and g < EPOCHS:
     g = g + 1
     print("-- Generation %i --" % g)
     offspring = toolbox.select(pop)
