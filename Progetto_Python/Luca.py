@@ -1,10 +1,13 @@
 import numpy as np
 import random
 import multiprocessing
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
 from scipy.sparse import csc_matrix, diags
 from deap import base
 from deap import creator
@@ -430,9 +433,6 @@ train, test, trainLabels, testLabels = train_test_split(dataset, labels, test_si
 # Second Step: Splitting training data in two equal part: first one to make individuals evolve and choose the best one (i.e. select best features) and second one for classifiers tuning
 trainFeature, trainParams, trainFeatureLabels, trainParamsLabels = train_test_split(train, trainLabels, test_size=0.5, random_state=42, stratify = trainLabels)
 
-laplacianScores = lap_score(trainFeature)
-maxLaplacianScore = sum(laplacianScores)
-
 # We create our Fitness class. We have to maximize a single objective fitness, that's why we have a single value for weights. 
 # Our objective fitness is Random Forest accuracy over 40% of the data
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
@@ -449,19 +449,34 @@ toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 # Our function to evaluate fitness value of an individual
 def evalAccuracy(individual):
-	clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
+    skf = StratifiedKFold(n_splits=3, shuffle=True)
     indices = [i for i, x in enumerate(individual) if x == 1]
-    trainAfterSelection = trainFeature[:, indices] # Selecting features according to the chromosomes of the individual
-    pathSimilarity = 0
-    laplacianTotalScore = 0
-    for t in range(0, len(indices)):
-        laplacianTotalScore += laplacianScores[indices[t]]
-        for v in range(1, len(indices)):
-            if t < v: # Jaccard matrix is specular, so Matrix[i,j] = Matrix[j,i]. We don't consider each value twice!
-                pathSimilarity += jaccardMatrix[indices[t], indices[v]]
-    pathSimilarity /= maxJaccardSimilarity
-    laplacianTotalScore /= maxLaplacianScore
-    fitnessScore = a * cross_val_score(clf, trainAfterSelection, trainFeatureLabels, cv = 3) + b * pathSimilarity + c * laplacianTotalScore # Fitness = 3-Fold CV Accuracy, Pathway Similarity and Laplacian Score
+    scoreCV = 0
+
+    for trainCV, testCV in skf.split(trainFeature, trainFeatureLabels):
+    	clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
+        
+        trainAfterSelection = trainFeature[trainCV, indices] # Selecting features according to the chromosomes of the individual
+
+        # Computing Laplacian Score on train folds only!
+        laplacianScores = lap_score(trainFeature[trainCV, :])
+        maxLaplacianScore = sum(laplacianScores) # Maximum laplacian score is the sum of the scores of all our features (i.e. when we do no feature selection)
+
+        # Calculating pathway-pathway similarity and the laplacian score of the solution identified by the current chromosome
+        pathSimilarity = 0
+        laplacianTotalScore = 0
+        for t in range(0, len(indices)):
+            laplacianTotalScore += laplacianScores[indices[t]]
+            for v in range(1, len(indices)):
+                if t < v: # Jaccard matrix is specular, so Matrix[i,j] = Matrix[j,i]. We don't consider each value twice!
+                    pathSimilarity += jaccardMatrix[indices[t], indices[v]]
+        pathSimilarity /= maxJaccardSimilarity
+        laplacianTotalScore /= maxLaplacianScore
+
+        clf.fit(trainAfterSelection, trainFeatureLabels[trainCV])
+        scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(trainFeature[testCV, indices]))
+    scoreCV /= 3
+    fitnessScore = a * scoreCV + b * pathSimilarity + c * laplacianTotalScore # Fitness = 3-Fold CV Accuracy, Pathway Similarity and Laplacian Score
     return fitnessScore
 
 def selElitistAndTournament(individuals, k_elitist, k_tournament, tournsizeTour):
@@ -528,3 +543,121 @@ while max(fits) < 1.0 and g < EPOCHS:
     print("  Max %s" % max(fits))
     print("  Avg %s" % mean)
     print("  Std %s" % std)
+
+# Printing best solution
+best_ind = tools.selBest(pop, 1)[0] # Picking best individual
+print("Best individual is %s, %s" % (best_ind, best_ind.fitness.values))
+
+# Printing results of best individual
+indices = [i for i, x in enumerate(best_ind) if x == 1] # Taking indices of pathways selected through Genetic Algorithm in the best individual
+skf = StratifiedKFold(n_splits=3, shuffle=True)
+scoreCV = 0
+
+for trainCV, testCV in skf.split(trainFeature, trainFeatureLabels):
+    clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
+    
+    trainAfterSelection = trainFeature[trainCV, indices] # Selecting features according to the chromosomes of the individual
+
+    # Computing Laplacian Score on train folds only!
+    laplacianScores = lap_score(trainFeature[trainCV, :])
+    maxLaplacianScore = sum(laplacianScores) # Maximum laplacian score is the sum of the scores of all our features (i.e. when we do no feature selection)
+
+    # Calculating pathway-pathway similarity and the laplacian score of the solution identified by the current chromosome
+    pathSimilarity = 0
+    laplacianTotalScore = 0
+    for t in range(0, len(indices)):
+        laplacianTotalScore += laplacianScores[indices[t]]
+        for v in range(1, len(indices)):
+            if t < v: # Jaccard matrix is specular, so Matrix[i,j] = Matrix[j,i]. We don't consider each value twice!
+                pathSimilarity += jaccardMatrix[indices[t], indices[v]]
+    pathSimilarity /= maxJaccardSimilarity
+    laplacianTotalScore /= maxLaplacianScore
+
+    clf.fit(trainAfterSelection, trainFeatureLabels[trainCV])
+    scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(trainFeature[testCV, indices]))
+scoreCV /= 3
+
+print("- - - - Best individual - - - -")
+print("Accuracy: %s, Pathway Similarity: %s, Laplacian Score: %s" % str(scoreCV), str(pathSimilarity), str(laplacianTotalScore))
+
+
+# CLASSIFIERS TUNING
+trainAfterSelection = trainParams[:, indices]
+
+# SVM
+
+C = [0.001, 0.01, 0.1, 1, 10, 100, 1000] # Choices of SVM C parameter
+
+param_grid = dict(C = C)
+
+estimator = GridSearchCV(svm, cv=3, param_grid=param_grid, n_jobs = -1, verbose = 1)
+estimator.fit(trainAfterSelection, trainParamsLabels)
+
+print("The best parameters are %s with a score of %0.4f" % (estimator.best_params_, estimator.best_score_))
+
+# RANDOM FOREST
+
+# Leaf size decision
+
+iterations = 1000
+sizes = [1, 2, 5, 7]
+averages = [0 for i in range(len(sizes))]
+
+for j in range(iterations):
+    print(j)
+    for i in range(len(sizes)):
+        rf = RandomForestClassifier(bootstrap=True, min_samples_leaf=sizes[i], n_estimators=351, n_jobs=-1, oob_score=True)
+        rf= rf.fit(trainAfterSelection, trainParamsLabels)
+        averages[i] += rf.oob_score_;
+        
+averagesFinal = [x/iterations for x in averages]
+print(averagesFinal)
+
+# Trees number decision
+
+iterations = 1000
+sizes = [51, 101, 151, 251, 301, 351, 501]
+averages = [0 for i in range(len(sizes))]
+
+for j in range(iterations):
+    print(j)
+    for i in range(len(sizes)):
+        rf = RandomForestClassifier(bootstrap=True, min_samples_leaf=1, n_estimators=sizes[i], n_jobs=-1, oob_score=True)
+        rf= rf.fit(trainAfterSelection, trainParamsLabels)
+        averages[i] += rf.oob_score_;
+
+averagesFinal = [x/iterations for x in averages]
+print(averagesFinal)
+
+# Random Forest Validation
+
+iterations = 1000
+accuracy = []
+
+for i in range(iterations):
+    print(i)
+    classifier = RandomForestClassifier(bootstrap=True, min_samples_leaf=1, n_estimators=501, n_jobs=-1, oob_score=True)
+    classifier.fit(trainAfterSelection, trainParamsLabels)
+    accuracy.append(classifier.oob_score_)
+print(np.mean(accuracy))
+plt.boxplot(accuracy)
+plt.show()
+
+print(accuracy_score(testLabelsFinal, classifier.predict(testFinal)))
+
+# TESTING
+
+svm = SVC(C=1.0)
+rf = RandomForestClassifier(bootstrap=True, min_samples_leaf=1, n_estimators=501, n_jobs=-1)
+
+trainAfterSelection = train[:, indices]
+testAfterSelection = test[:, indices]
+
+svm.fit(trainAfterSelection, trainLabels)
+rf.fit(trainAfterSelection, trainLabels)
+
+print("SVM ACCURACY")
+print(accuracy_score(testLabels, svm.predict(testAfterSelection)))
+
+print("RANDOM FOREST ACCURACY")
+print(accuracy_score(testLabels, rf.predict(testAfterSelection)))
