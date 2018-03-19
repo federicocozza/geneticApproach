@@ -1,7 +1,6 @@
 import numpy as np
 import random
 import multiprocessing
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
@@ -640,8 +639,6 @@ for i in range(iterations):
     classifier.fit(trainAfterSelection, trainParamsLabels)
     accuracy.append(classifier.oob_score_)
 print(np.mean(accuracy))
-plt.boxplot(accuracy)
-plt.show()
 
 print(accuracy_score(testLabelsFinal, classifier.predict(testFinal)))
 
