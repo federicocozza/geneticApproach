@@ -489,9 +489,9 @@ def evalAccuracy(individual):
         clf.fit(trainAfterSelection, trainFeatureLabels[trainCV])
         scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(testAfterSelection))
     scoreCV /= 3
-    if FITNESSTYPE == 1
+    if FITNESSTYPE == 1:
         fitnessScore = scoreCV
-    else if FITNESSTYPE == 3
+    else if FITNESSTYPE == 3:
         fitnessScore = a * scoreCV + b * pathSimilarity + c * laplacianTotalScore # Fitness = 3-Fold CV Accuracy, Pathway Similarity and Laplacian Score
     return [fitnessScore]
 
