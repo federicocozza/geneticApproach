@@ -571,8 +571,12 @@ scoreCV = 0
 
 # Saving train data both with all features and with selected features only. We do this to plot data with MDS to know their separability
 si.savemat('trainNoFeatSelection.mat', dict(data=train, labelsData=trainLabels)) # Train data before feature selection
-si.savemat('trainGA-ACC_PAT_LAP-60_20_20.mat', dict(data=train[:, indices], labelsData=trainLabels)) # Train data after feature selection
-save_obj(best_ind, 'bestIndividual-60_20_20')
+if FITNESSTYPE == 1:
+    si.savemat('trainGA-ACC.mat', dict(data=train[:, indices], labelsData=trainLabels)) # Train data after feature selection
+    save_obj(best_ind, 'bestIndividual-ACC')
+else if FITNESSTYPE == 3:
+    si.savemat('trainGA-ACC_PAT_LAP-' + str(a * 100) + '_' + str(b * 100) + '_' + str(c * 100) + '.mat', dict(data=train[:, indices], labelsData=trainLabels)) # Train data after feature selection
+    save_obj(best_ind, 'bestIndividual-' + str(a * 100) + '_' + str(b * 100) + '_' + str(c * 100))
 
 for trainCV, testCV in skf.split(trainFeature, trainFeatureLabels):
     clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
