@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.io as si
 import random
 import multiprocessing
 from sklearn.model_selection import train_test_split
@@ -455,10 +456,13 @@ def evalAccuracy(individual):
     for trainCV, testCV in skf.split(trainFeature, trainFeatureLabels):
     	clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
         
-        trainAfterSelection = trainFeature[trainCV, indices] # Selecting features according to the chromosomes of the individual
+        trainAfterSelection = trainFeature[trainCV]
+        trainAfterSelection = trainAfterSelection[:,indices] # Selecting features according to the chromosomes of the individual
+        testAfterSelection = trainFeature[testCV]
+        testAfterSelection = testAfterSelection[:, indices]
 
         # Computing Laplacian Score on train folds only!
-        laplacianScores = lap_score(trainFeature[trainCV, :])
+        laplacianScores = lap_score(trainFeature[trainCV])
         maxLaplacianScore = sum(laplacianScores) # Maximum laplacian score is the sum of the scores of all our features (i.e. when we do no feature selection)
 
         # Calculating pathway-pathway similarity and the laplacian score of the solution identified by the current chromosome
@@ -473,10 +477,10 @@ def evalAccuracy(individual):
         laplacianTotalScore /= maxLaplacianScore
 
         clf.fit(trainAfterSelection, trainFeatureLabels[trainCV])
-        scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(trainFeature[testCV, indices]))
+        scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(testAfterSelection))
     scoreCV /= 3
     fitnessScore = a * scoreCV + b * pathSimilarity + c * laplacianTotalScore # Fitness = 3-Fold CV Accuracy, Pathway Similarity and Laplacian Score
-    return fitnessScore
+    return [fitnessScore]
 
 def selElitistAndTournament(individuals, k_elitist, k_tournament, tournsizeTour):
     return tools.selBest(individuals, k_elitist) + tools.selTournament(individuals, k_tournament, tournsize=tournsizeTour)
@@ -552,13 +556,20 @@ indices = [i for i, x in enumerate(best_ind) if x == 1] # Taking indices of path
 skf = StratifiedKFold(n_splits=3, shuffle=True)
 scoreCV = 0
 
+# Saving train data both with all features and with selected features only. We do this to plot data with MDS to know their separability
+si.savemat('trainNoFeatSelection.mat', dict(data=train, labelsData=trainLabels)) # Train data before feature selection
+si.savemat('trainGA-ACC_PAT_LAP-60_20_20.mat', dict(data=train[:, indices], labelsData=trainLabels)) # Train data after feature selection
+
 for trainCV, testCV in skf.split(trainFeature, trainFeatureLabels):
     clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
     
-    trainAfterSelection = trainFeature[trainCV, indices] # Selecting features according to the chromosomes of the individual
+    trainAfterSelection = trainFeature[trainCV]
+    trainAfterSelection = trainAfterSelection[:,indices] # Selecting features according to the chromosomes of the individual
+    testAfterSelection = trainFeature[testCV]
+    testAfterSelection = testAfterSelection[:, indices]
 
     # Computing Laplacian Score on train folds only!
-    laplacianScores = lap_score(trainFeature[trainCV, :])
+    laplacianScores = lap_score(trainFeature[trainCV])
     maxLaplacianScore = sum(laplacianScores) # Maximum laplacian score is the sum of the scores of all our features (i.e. when we do no feature selection)
 
     # Calculating pathway-pathway similarity and the laplacian score of the solution identified by the current chromosome
@@ -573,15 +584,16 @@ for trainCV, testCV in skf.split(trainFeature, trainFeatureLabels):
     laplacianTotalScore /= maxLaplacianScore
 
     clf.fit(trainAfterSelection, trainFeatureLabels[trainCV])
-    scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(trainFeature[testCV, indices]))
+    scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(testAfterSelection))
 scoreCV /= 3
 
 print("- - - - Best individual - - - -")
-print("Accuracy: %s, Pathway Similarity: %s, Laplacian Score: %s" % str(scoreCV), str(pathSimilarity), str(laplacianTotalScore))
+print("Accuracy: %s, Pathway Similarity: %s, Laplacian Score: %s" % (str(scoreCV), str(pathSimilarity), str(laplacianTotalScore)))
 
 
 # CLASSIFIERS TUNING
 trainAfterSelection = trainParams[:, indices]
+svm = SVC(C=1.0, kernel='linear')
 
 # SVM
 
