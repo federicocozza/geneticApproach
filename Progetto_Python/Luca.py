@@ -491,7 +491,7 @@ def evalAccuracy(individual):
     scoreCV /= 3
     if FITNESSTYPE == 1:
         fitnessScore = scoreCV
-    else if FITNESSTYPE == 3:
+    elif FITNESSTYPE == 3:
         fitnessScore = a * scoreCV + b * pathSimilarity + c * laplacianTotalScore # Fitness = 3-Fold CV Accuracy, Pathway Similarity and Laplacian Score
     return [fitnessScore]
 
@@ -574,7 +574,7 @@ si.savemat('trainNoFeatSelection.mat', dict(data=train, labelsData=trainLabels))
 if FITNESSTYPE == 1:
     si.savemat('trainGA-ACC.mat', dict(data=train[:, indices], labelsData=trainLabels)) # Train data after feature selection
     save_obj(best_ind, 'bestIndividual-ACC')
-else if FITNESSTYPE == 3:
+elif FITNESSTYPE == 3:
     si.savemat('trainGA-ACC_PAT_LAP-' + str(a * 100) + '_' + str(b * 100) + '_' + str(c * 100) + '.mat', dict(data=train[:, indices], labelsData=trainLabels)) # Train data after feature selection
     save_obj(best_ind, 'bestIndividual-' + str(a * 100) + '_' + str(b * 100) + '_' + str(c * 100))
 
