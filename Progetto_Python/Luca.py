@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.io as si
 import random
+import pickle
 import multiprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -12,6 +13,14 @@ from scipy.sparse import csc_matrix, diags
 from deap import base
 from deap import creator
 from deap import tools
+
+def save_obj (obj, name):
+    with open(name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+ 
+def load_obj (name):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
 
 def construct_W(X, **kwargs):
     """
@@ -408,6 +417,7 @@ def lap_score(X, **kwargs):
 CXPB = 0.7 # Crossover Rate: the probability to apply Crossover on two selected individuals
 POP_SIZE = 1000 # The number of individuals
 EPOCHS = 500
+FITNESSTYPE = 1 # 1 - Fitness = RF Accuracy | 3 - Fitness = RF Accuracy + Pathway-Pathway similarity + Laplacian score
 # a, b and c define the linear combination of accuracy, pathway-pathway similarity and Laplacian score for our fitness function
 a = 0.6 # Weight of accuracy
 b = 0.2 # Weight of pathway-pathway Jaccard similarity
@@ -479,7 +489,10 @@ def evalAccuracy(individual):
         clf.fit(trainAfterSelection, trainFeatureLabels[trainCV])
         scoreCV += accuracy_score(trainFeatureLabels[testCV], clf.predict(testAfterSelection))
     scoreCV /= 3
-    fitnessScore = a * scoreCV + b * pathSimilarity + c * laplacianTotalScore # Fitness = 3-Fold CV Accuracy, Pathway Similarity and Laplacian Score
+    if FITNESSTYPE == 1
+        fitnessScore = scoreCV
+    else if FITNESSTYPE == 3
+        fitnessScore = a * scoreCV + b * pathSimilarity + c * laplacianTotalScore # Fitness = 3-Fold CV Accuracy, Pathway Similarity and Laplacian Score
     return [fitnessScore]
 
 def selElitistAndTournament(individuals, k_elitist, k_tournament, tournsizeTour):
@@ -559,6 +572,7 @@ scoreCV = 0
 # Saving train data both with all features and with selected features only. We do this to plot data with MDS to know their separability
 si.savemat('trainNoFeatSelection.mat', dict(data=train, labelsData=trainLabels)) # Train data before feature selection
 si.savemat('trainGA-ACC_PAT_LAP-60_20_20.mat', dict(data=train[:, indices], labelsData=trainLabels)) # Train data after feature selection
+save_obj(best_ind, 'bestIndividual-60_20_20')
 
 for trainCV, testCV in skf.split(trainFeature, trainFeatureLabels):
     clf = RandomForestClassifier(n_estimators = 301, min_samples_leaf = 1, bootstrap=True, oob_score = True, n_jobs = -1)
